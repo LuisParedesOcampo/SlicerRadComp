@@ -16,14 +16,19 @@ Companion web application: [RadComp on Streamlit](https://radcomp.streamlit.app)
 * **Time-Based Recovery Factor:** Applies partial biological recovery discounts to the base plan based on the interval between treatments.
 * **"Eclipse-Style"** Dose Wash: Custom dynamic color map transition (Dark Blue to Red) with a 2 Gy threshold and 40% opacity, replicating the familiar visual experience of commercial Treatment Planning Systems (TPS).
 * **Seamless SlicerRT Integration:** Output volumes are directly compatible with SlicerRT's Dose Volume Histogram (DVH) module.
+* **Dosimetric Analysis:** Metrics table (Dmax, Dmean) synchronized with structure visibility.
+*  **DVH Generation:** Generation of interactive DVH curves within the Slicer.
 
 ## Installation 🛠️
 1. Download or clone this repository to your local machine.
 2. Open 3D Slicer.
-3. Go to **Edit -> Application Settings -> Modules**.
-4. Click the `>>` button next to "Additional module paths" and Add the `SlicerRadComp` folder.
+3. In 3D Slicer, go to **Developer Tools** -> **Extension Wizard**.
+4. Click **Select Extension** and choose the folder where you downloaded this code..
 5. Restart 3D Slicer. The module will now appear under the **Radiotherapy** category.
 
 ## Disclaimer ⚠️
 **This software is for research and educational purposes only and has not been cleared for clinical use by any regulatory body (FDA, CE, etc.).**
 The user assumes all responsibility for the interpretation and clinical application of the results provided by this tool. Calculations must be independently verified by a certified Medical Physicist or Radiation Oncologist before any clinical decision.
+
+**Autor:** Luis Paredes, Clinical Medical Physicist (Cali, Colombia).
+**Web version:** [radcomp.streamlit.app](https://radcomp.streamlit.app)
