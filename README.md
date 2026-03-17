@@ -6,6 +6,9 @@ This module performs voxel-by-voxel mathematical operations to biologically sum 
 
 Companion web application: [RadComp on Streamlit](https://radcomp.streamlit.app)
 
+<img width="1919" height="701" alt="image" src="https://github.com/user-attachments/assets/8ca2476f-8099-419e-a42c-a3b2d6cb43af" />
+
+
 ## Features 🚀
 * **Fast Image Registration Wrapper:** Automated Rigid and Deformable (B-Spline) registration workflows using the BRAINSFit engine, eliminating the need to switch between multiple Slicer modules.
 * **Auto-Resampling Engine:** Automatically resamples the moving dose grid to perfectly match the reference geometry, preventing matrix dimension errors during biological accumulation.
