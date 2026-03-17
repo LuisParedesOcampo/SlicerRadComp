@@ -15,9 +15,9 @@ class SlicerRadComp(ScriptedLoadableModule):
     def __init__(self, parent):
         ScriptedLoadableModule.__init__(self, parent)
         self.parent.title = "RadComp: Reirradiation Analysis"
-        self.parent.categories = ["Radiotherapy", "Physics"]
-        self.parent.dependencies = ["SlicerRT"]
-        self.parent.contributors = ["Luis Paredes (Cali, Colombia) www.linkedin.com/in/lfparedes1"]
+        self.parent.categories = ["Radiotherapy"]
+        self.parent.dependencies = []
+        self.parent.contributors = ["Luis Paredes, Clinical Medical Physicist (Cali, Colombia) www.linkedin.com/in/lfparedes1"]
         self.parent.helpText = """
         This module allows for re-irradiation analysis through EQD2 dose calculation, study alignment, and integrated dosimetric metrics.
         Visit: https://radcomp.streamlit.app .
@@ -42,7 +42,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # PANEL 1: FAST IMAGE REGISTRATION
         # ==========================================
         registrationCollapsibleButton = ctk.ctkCollapsibleButton()
-        registrationCollapsibleButton.text = "1. Image Registration & Dose Resample "
+        registrationCollapsibleButton.text = "1. Image Registration and Dose Resample "
         registrationCollapsibleButton.collapsed = False  # Que inicie abierto
         self.layout.addWidget(registrationCollapsibleButton)
         registrationFormLayout = qt.QFormLayout(registrationCollapsibleButton)
@@ -104,9 +104,9 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Connect Register button to function
         self.registerButton.connect('clicked(bool)', self.onRegisterButton)
 
-        # Le cambiamos el texto al panel de abajo para  el "Paso 2"
-        # parametersCollapsibleButton.text = "2. Biological Calculation Settings"
-        # --- Collapsible Panel ---
+        # =========================================================================================================================================
+        # PANEL 2: REIRRADIATION ANALYSIS
+        #========================================================================================================================================
         parametersCollapsibleButton = ctk.ctkCollapsibleButton()
         parametersCollapsibleButton.text = "2. Reirradiation Calculation Settings"  # Mismo nombre que el sidebar de Streamlit
         self.layout.addWidget(parametersCollapsibleButton)
@@ -161,7 +161,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.fractions_b_spinbox.setMaximum(100)
         parametersFormLayout.addRow("Number of Fractions RT2: ", self.fractions_b_spinbox)
 
-        # --- 3. Time / Recovery Factor (Basado en RadComp Streamlit) ---
+        # -Recovery Factor (Basado en RadComp Streamlit) ---
         self.recovery_checkbox = qt.QCheckBox("Enable Partial Recovery (Time-based model)")
         self.recovery_checkbox.setChecked(False)
         self.recovery_checkbox.setToolTip("The BED contribution from the previous irradiation course is reduced according its recovery assumption before being combined with the new treatment")
@@ -177,7 +177,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Conectar la casilla para que encienda o apague el selector de meses
         self.recovery_checkbox.connect('toggled(bool)', self.months_spinbox.setEnabled)
 
-        # --- 4. Configuración de Salida ---
+        # Configuración volumen de Salida ---
         self.output_name_input = qt.QLineEdit()
         self.output_name_input.setPlaceholderText("Optional: Custom name for the new volume...")
         self.output_name_input.setToolTip("If you leave it blank, it will use the default name..")
@@ -213,6 +213,14 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.rtstruct_selector.setToolTip("Selecciona el conjunto de estructuras (RTSTRUCT) de la RT Nueva.")
         structuresFormLayout.addRow("RT2 Structures: ", self.rtstruct_selector)
 
+        # --- BOTÓN PARA OCULTAR TODAS LAS ESTRUCTURAS ---
+        self.hide_all_button = qt.QPushButton("Hide all Structures")
+        self.hide_all_button.setStyleSheet("background-color: #34495e; color: white; padding: 5px;")
+        structuresFormLayout.addRow(self.hide_all_button)
+
+        # Conectar el botón a la función
+        self.hide_all_button.connect('clicked(bool)', self.onHideAllStructures)
+
         # 2. Inyectar la Tabla Nativa de Segmentos de Slicer
         self.segments_table = slicer.qMRMLSegmentsTableView()
         self.segments_table.setMRMLScene(slicer.mrmlScene)
@@ -224,6 +232,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # ==========================================================
         # PANEL 4: ANÁLISIS DOSIMÉTRICO (EQD2 METRICS)
         # ==========================================================
+
         metricsCollapsibleButton = ctk.ctkCollapsibleButton()
         metricsCollapsibleButton.text = "4: EQD2 Metrics & DVH"
         self.layout.addWidget(metricsCollapsibleButton)
@@ -254,6 +263,10 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Empuja todo hacia arriba para que quede ordenado
         self.layout.addStretch(1)
+
+    #====================================================================================================================
+    # FUNCIONES CONECTADAS
+    #==================================================================================================================
 
     def onApplyButton(self):
         # 1. Recolectar los datos que el usuario puso en la interfaz
@@ -345,130 +358,178 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Si se selecciona "None", vaciamos la tabla
             self.segments_table.setSegmentationNode(None)
 
-    def onCalculateMetrics(self):
-        """Calcula Dmax y Dmean solo para las estructuras visibles en la tabla"""
-        import numpy as np
-
+    def onHideAllStructures(self):
+        """Apaga la visibilidad (cierra el ojito) de todas las estructuras simultáneamente"""
         segmentation_node = self.rtstruct_selector.currentNode()
-        eqd2_nodes = list(slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode"))
-        eqd2_dose_node = next((node for node in eqd2_nodes if "EQD2" in node.GetName()), None)
 
-        if not segmentation_node or not eqd2_dose_node:
-            slicer.util.warningDisplay("Make sure you have calculated the EQD2 dose and selected an RTSTRUCT.")
+        if not segmentation_node:
+            slicer.util.warningDisplay("Please select an RTSTRUCT in Panel 3 first.")
             return
 
-        slicer.util.showStatusMessage("Calculating metrics for visible structures..")
-        slicer.app.processEvents()
+        display_node = segmentation_node.GetDisplayNode()
+        if not display_node:
+            return
 
         segmentation = segmentation_node.GetSegmentation()
-        display_node = segmentation_node.GetDisplayNode()  # Acceso a los interruptores de visibilidad
+        num_segments = segmentation.GetNumberOfSegments()
+
+        slicer.util.showStatusMessage("Hiding structures...")
+        slicer.app.processEvents()
+
+        # TRUCO PRO: Pausar el renderizado de la escena para que el apagado sea instantáneo
+        slicer.mrmlScene.StartState(slicer.mrmlScene.BatchProcessState)
+
+        # Iterar por todos los órganos y forzar su visibilidad a False (Apagado)
+        for i in range(num_segments):
+            segment_id = segmentation.GetNthSegmentID(i)
+            display_node.SetSegmentVisibility(segment_id, False)
+
+        # Reanudar el renderizado (los ojitos se cerrarán todos al mismo tiempo)
+        slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
+
+        slicer.util.showStatusMessage("¡All the structures have been hidden!")
+
+    def onCalculateMetrics(self):
+        """Calcula métricas forzando la actualización de los datos de dosis visibles"""
+        import numpy as np
+
+        # Identificar el volumen activo en el visor rojo
+        layoutManager = slicer.app.layoutManager()
+        sliceWidget = layoutManager.sliceWidget('Red')
+        compositeNode = sliceWidget.sliceLogic().GetSliceCompositeNode()
+
+        # IMPORTANTE: Tomamos el volumen del Foreground (lo que estás viendo)
+        foreground_id = compositeNode.GetForegroundVolumeID()
+        if not foreground_id:
+            slicer.util.warningDisplay(
+                "There is no active volume in the foreground layer. Make sure you have the dose map selected.")
+            return
+
+        eqd2_dose_node = slicer.mrmlScene.GetNodeByID(foreground_id)
+
+        slicer.util.showStatusMessage(f"Calculating about: {eqd2_dose_node.GetName()}...")
+        slicer.app.processEvents()
+
+        segmentation_node = self.rtstruct_selector.currentNode()
+        if not segmentation_node:
+            slicer.util.warningDisplay("Select a valid RTSTRUCT in Panel 3.")
+            return
+
+        segmentation = segmentation_node.GetSegmentation()
+        display_node = segmentation_node.GetDisplayNode()
 
         self.metrics_table.setRowCount(0)
         row = 0
 
+        # EXTRAER LA MATRIZ DE DOSIS ACTUALIZADA
+        dose_array = slicer.util.arrayFromVolume(eqd2_dose_node)
+
         for i in range(segmentation.GetNumberOfSegments()):
             segment_id = segmentation.GetNthSegmentID(i)
-
-            # --- EL FILTRO DE SINCRONIZACIÓN ---
-            # Si el segmento está oculto en la interfaz, lo saltamos en la tabla
             if display_node and not display_node.GetSegmentVisibility(segment_id):
                 continue
 
             segment_name = segmentation.GetSegment(segment_id).GetName()
 
-            # Extracción de vóxeles (usando la dosis como molde de resolución)
+            # Resamplear el segmento a la resolución del NUEVO volumen de dosis
             segment_array = slicer.util.arrayFromSegmentBinaryLabelmap(segmentation_node, segment_id, eqd2_dose_node)
-            if segment_array is None: continue
 
-            dose_array = slicer.util.arrayFromVolume(eqd2_dose_node)
-            organ_dose_values = dose_array[segment_array > 0]
+            if segment_array is not None:
+                organ_dose_values = dose_array[segment_array > 0]
+                if len(organ_dose_values) > 0:
+                    max_dose = np.max(organ_dose_values)
+                    mean_dose = np.mean(organ_dose_values)
 
-            if len(organ_dose_values) > 0:
-                max_dose = np.max(organ_dose_values)
-                mean_dose = np.mean(organ_dose_values)
-            else:
-                max_dose = 0.0
-                mean_dose = 0.0
+                    self.metrics_table.insertRow(row)
+                    self.metrics_table.setItem(row, 0, qt.QTableWidgetItem(segment_name))
 
-            # Llenar la tabla
-            self.metrics_table.insertRow(row)
-            self.metrics_table.setItem(row, 0, qt.QTableWidgetItem(segment_name))
+                    item_max = qt.QTableWidgetItem(f"{max_dose:.2f}")
+                    item_max.setTextAlignment(qt.Qt.AlignCenter)
+                    self.metrics_table.setItem(row, 1, item_max)
 
-            item_max = qt.QTableWidgetItem(f"{max_dose:.2f}")
-            item_max.setTextAlignment(qt.Qt.AlignCenter)
-            self.metrics_table.setItem(row, 1, item_max)
+                    item_mean = qt.QTableWidgetItem(f"{mean_dose:.2f}")
+                    item_mean.setTextAlignment(qt.Qt.AlignCenter)
+                    self.metrics_table.setItem(row, 2, item_mean)
 
-            item_mean = qt.QTableWidgetItem(f"{mean_dose:.2f}")
-            item_mean.setTextAlignment(qt.Qt.AlignCenter)
-            self.metrics_table.setItem(row, 2, item_mean)
+                    row += 1
 
-            row += 1
-
-        slicer.util.showStatusMessage("Metrics table updated!")
-
+        slicer.util.showStatusMessage("Metrics updated correctly.")
 
     def onGenerateDVH(self):
-        """Calcula el DVH solo para las estructuras que están visibles (con el ojo abierto)"""
+        """Genera el DVH eliminando datos previos de la escena"""
         import numpy as np
         import vtk
 
-        segmentation_node = self.rtstruct_selector.currentNode()
-        eqd2_nodes = list(slicer.util.getNodesByClass("vtkMRMLScalarVolumeNode"))
-        eqd2_dose_node = next((node for node in eqd2_nodes if "EQD2" in node.GetName()), None)
+        layoutManager = slicer.app.layoutManager()
+        sliceWidget = layoutManager.sliceWidget('Red')
+        compositeNode = sliceWidget.sliceLogic().GetSliceCompositeNode()
 
-        if not segmentation_node or not eqd2_dose_node:
-            slicer.util.warningDisplay("Make sure you have the EQD2 map and RTSTRUCT selected.")
+        foreground_id = compositeNode.GetForegroundVolumeID()
+        if not foreground_id:
+            slicer.util.warningDisplay("There is no active volume in the foreground layer.")
             return
 
-        slicer.util.showStatusMessage("Generating DVH curves... Please wait.")
-        slicer.app.processEvents()
+        eqd2_dose_node = slicer.mrmlScene.GetNodeByID(foreground_id)
 
-        # 1. Crear el Lienzo del Gráfico
+        # ==========================================================
+        # LIMPIEZA PROFUNDA (GARBAGE COLLECTOR)
+        # ==========================================================
+        # Borramos Chart, Tablas y Series previas para no saturar la RAM ni el panel de datos
+        nodes_to_delete = slicer.util.getNodesByClass("vtkMRMLPlotChartNode") + \
+                          slicer.util.getNodesByClass("vtkMRMLTableNode") + \
+                          slicer.util.getNodesByClass("vtkMRMLPlotSeriesNode")
+
+        for node in nodes_to_delete:
+            if "DVH" in node.GetName():
+                slicer.mrmlScene.RemoveNode(node)
+        # ==========================================================
+
         plotChartNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotChartNode", "DVH_EQD2_Chart")
-        plotChartNode.SetTitle("Dose-Volume Histogram (EQD2)")
+        # Le ponemos el nombre del volumen actual al título del gráfico para que sepas qué estás viendo
+        plotChartNode.SetTitle(f"Dose Volume Histogram ({eqd2_dose_node.GetName()})")
         plotChartNode.SetXAxisTitle("Dose EQD2 (Gy)")
-        plotChartNode.SetYAxisTitle("Relative Volume(%)")
+        plotChartNode.SetYAxisTitle("Relative Volume (%)")
+
+        segmentation_node = self.rtstruct_selector.currentNode()
+        if not segmentation_node: return
 
         segmentation = segmentation_node.GetSegmentation()
-        display_node = segmentation_node.GetDisplayNode()  # Necesitamos esto para ver los ojitos
+        display_node = segmentation_node.GetDisplayNode()
 
-        # 2. Iterar por cada órgano
+        dose_array = slicer.util.arrayFromVolume(eqd2_dose_node)
+
         for i in range(segmentation.GetNumberOfSegments()):
             segment_id = segmentation.GetNthSegmentID(i)
-
-            # --- EL FILTRO DE VISIBILIDAD ---
-            # Si el 'ojito' está apagado en la tabla, saltamos esta estructura
             if display_node and not display_node.GetSegmentVisibility(segment_id):
                 continue
 
-            segment_name = segmentation.GetSegment(segment_id).GetName()
-            color = segmentation.GetSegment(segment_id).GetColor()
-
-            # Extraer vóxeles sincronizados con la dosis
             segment_array = slicer.util.arrayFromSegmentBinaryLabelmap(segmentation_node, segment_id, eqd2_dose_node)
             if segment_array is None: continue
 
-            dose_array = slicer.util.arrayFromVolume(eqd2_dose_node)
             organ_dose_values = dose_array[segment_array > 0]
             if len(organ_dose_values) == 0: continue
 
-            # Matemática del DVH
+            # Cálculo de DVH
             max_dose = np.max(organ_dose_values)
             bins = np.arange(0, max_dose + 0.2, 0.1)
-            hist, edges = np.histogram(organ_dose_values, bins=bins)
-            cum_vol = np.cumsum(hist[::-1])[::-1]
-            cum_vol_percent = (cum_vol / cum_vol[0]) * 100.0
+            hist, _ = np.histogram(organ_dose_values, bins=bins)
+            cum_vol_percent = (np.cumsum(hist[::-1])[::-1] / len(organ_dose_values)) * 100.0
 
-            # Crear Tabla y Serie
-            tableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", f"DVH_Table_{segment_name}")
+            # Crear Tabla Única
+            segment_name = segmentation.GetSegment(segment_id).GetName()
+            color = segmentation.GetSegment(segment_id).GetColor()
+
+            tableNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTableNode", f"DVH_Data_{segment_name}")
             dose_col = vtk.vtkDoubleArray();
             dose_col.SetName("Dose")
             vol_col = vtk.vtkDoubleArray();
             vol_col.SetName("Volume")
+
             for d, v in zip(bins[:-1], cum_vol_percent):
                 dose_col.InsertNextValue(d)
                 vol_col.InsertNextValue(v)
-            tableNode.AddColumn(dose_col);
+
+            tableNode.AddColumn(dose_col)
             tableNode.AddColumn(vol_col)
 
             seriesNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLPlotSeriesNode", segment_name)
@@ -481,14 +542,14 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             plotChartNode.AddAndObservePlotSeriesNodeID(seriesNode.GetID())
 
-        # 3. Mostrar Layout
-        layoutManager = slicer.app.layoutManager()
+        # Configurar Layout y mostrar
         layoutManager.setLayout(slicer.vtkMRMLLayoutNode.SlicerLayoutFourUpPlotView)
         plotWidget = layoutManager.plotWidget(0)
         plotViewNode = plotWidget.mrmlPlotViewNode()
         plotViewNode.SetPlotChartNodeID(plotChartNode.GetID())
 
-        slicer.util.showStatusMessage("¡DVH Filtered Generated!")
+        slicer.util.showStatusMessage("¡DVH Successfully generated!")
+
 # ==========================================================
 # 3. LÓGICA MATEMÁTICA (CEREBRO)
 # ==========================================================
