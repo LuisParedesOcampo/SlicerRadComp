@@ -82,6 +82,44 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.fixed_dose_selector.setToolTip("The Dosage of the NEW plan. Its geometric matrix will be used as a template.")
         registrationFormLayout.addRow("RTDOSE planned treatment RT2 (Fixed): ", self.fixed_dose_selector)
 
+        # --- NUEVO: Panel Seguro de Pre-Alineación Manual ---
+        self.preAlignCollapsibleButton = ctk.ctkCollapsibleButton()
+        self.preAlignCollapsibleButton.text = "1. Manual Pre-Alignment (Translate)"
+        registrationFormLayout.addRow(self.preAlignCollapsibleButton)
+        preAlignLayout = qt.QFormLayout(self.preAlignCollapsibleButton)
+
+        # Botón de teletransporte
+        self.centerButton = qt.QPushButton("Auto-Center CTs")
+        self.centerButton.toolTip = "Teleports the Moving CT to the Fixed CT center before manual adjustment."
+        self.centerButton.setStyleSheet("background-color: #0078D7; color: white; font-weight: bold; padding: 5px;")
+        preAlignLayout.addRow(self.centerButton)
+
+        # Sliders (barras deslizadoras)
+        self.sliderX = ctk.ctkSliderWidget()
+        self.sliderX.minimum, self.sliderX.maximum, self.sliderX.value = -150, 150, 0
+        self.sliderX.suffix = " mm"
+        preAlignLayout.addRow("Right/Left (X):", self.sliderX)
+
+        self.sliderY = ctk.ctkSliderWidget()
+        self.sliderY.minimum, self.sliderY.maximum, self.sliderY.value = -150, 150, 0
+        self.sliderY.suffix = " mm"
+        preAlignLayout.addRow("Ant/Post (Y):", self.sliderY)
+
+        self.sliderZ = ctk.ctkSliderWidget()
+        self.sliderZ.minimum, self.sliderZ.maximum, self.sliderZ.value = -400, 400, 0
+        self.sliderZ.suffix = " mm"
+        preAlignLayout.addRow("Sup/Inf (Z):", self.sliderZ)
+
+        # Variables de control
+        self.manual_transform_node = None
+        self.base_translation = [0.0, 0.0, 0.0]
+
+        # Conectar los botones y barras a las funciones
+        self.centerButton.connect('clicked(bool)', self.onCenterButtonClicked)
+        self.sliderX.connect('valueChanged(double)', self.onSliderValueChanged)
+        self.sliderY.connect('valueChanged(double)', self.onSliderValueChanged)
+        self.sliderZ.connect('valueChanged(double)', self.onSliderValueChanged)
+
         # Casilla para Registro Afín (Escala y Cizalladura)
         self.affine_checkbox = qt.QCheckBox("Enable Affine Transform (Slower, high RAM)")
         self.affine_checkbox.setChecked(False)
@@ -104,11 +142,48 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         # Connect Register button to function
         self.registerButton.connect('clicked(bool)', self.onRegisterButton)
 
+        # ==========================================================
+        # PANEL 2: ESTRUCTURAS Y VISUALIZACIÓN
+        # ==========================================================
+        structuresCollapsibleButton = ctk.ctkCollapsibleButton()
+        structuresCollapsibleButton.text = "2: Structures & Visualization"
+        self.layout.addWidget(structuresCollapsibleButton)
+        structuresFormLayout = qt.QFormLayout(structuresCollapsibleButton)
+
+        # 1. Selector del RTSTRUCT (Nodos de Segmentación)
+        self.rtstruct_selector = slicer.qMRMLNodeComboBox()
+        self.rtstruct_selector.nodeTypes = ["vtkMRMLSegmentationNode"]  # Filtra solo RTSTRUCTs
+        self.rtstruct_selector.selectNodeUponCreation = True
+        self.rtstruct_selector.addEnabled = False
+        self.rtstruct_selector.removeEnabled = False
+        self.rtstruct_selector.noneEnabled = True
+        self.rtstruct_selector.showHidden = False
+        self.rtstruct_selector.showChildNodeTypes = False
+        self.rtstruct_selector.setMRMLScene(slicer.mrmlScene)
+        self.rtstruct_selector.setToolTip("Selecciona el conjunto de estructuras (RTSTRUCT) de la RT Nueva.")
+        structuresFormLayout.addRow("RT2 Structures: ", self.rtstruct_selector)
+
+        # --- BOTÓN PARA OCULTAR TODAS LAS ESTRUCTURAS ---
+        self.hide_all_button = qt.QPushButton("Hide all Structures")
+        self.hide_all_button.setStyleSheet("background-color: #34495e; color: white; padding: 5px;")
+        structuresFormLayout.addRow(self.hide_all_button)
+
+        # Conectar el botón a la función
+        self.hide_all_button.connect('clicked(bool)', self.onHideAllStructures)
+
+        # 2. Inyectar la Tabla Nativa de Segmentos de Slicer
+        self.segments_table = slicer.qMRMLSegmentsTableView()
+        self.segments_table.setMRMLScene(slicer.mrmlScene)
+        structuresFormLayout.addRow(self.segments_table)
+
+        # 3. Conectar el selector con la tabla
+        self.rtstruct_selector.connect("currentNodeChanged(vtkMRMLNode*)", self.onRTStructSelected)
+
         # =========================================================================================================================================
-        # PANEL 2: REIRRADIATION ANALYSIS
+        # PANEL 3: REIRRADIATION ANALYSIS
         #========================================================================================================================================
         parametersCollapsibleButton = ctk.ctkCollapsibleButton()
-        parametersCollapsibleButton.text = "2. Reirradiation Calculation Settings"  # Mismo nombre que el sidebar de Streamlit
+        parametersCollapsibleButton.text = "3. Reirradiation Calculation Settings"  # Mismo nombre que el sidebar de Streamlit
         self.layout.addWidget(parametersCollapsibleButton)
         parametersFormLayout = qt.QFormLayout(parametersCollapsibleButton)
 
@@ -193,48 +268,11 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.applyButton.connect('clicked(bool)', self.onApplyButton)
 
         # ==========================================================
-        # PANEL 3: ESTRUCTURAS Y VISUALIZACIÓN
-        # ==========================================================
-        structuresCollapsibleButton = ctk.ctkCollapsibleButton()
-        structuresCollapsibleButton.text = "3: Structures & Visualization"
-        self.layout.addWidget(structuresCollapsibleButton)
-        structuresFormLayout = qt.QFormLayout(structuresCollapsibleButton)
-
-        # 1. Selector del RTSTRUCT (Nodos de Segmentación)
-        self.rtstruct_selector = slicer.qMRMLNodeComboBox()
-        self.rtstruct_selector.nodeTypes = ["vtkMRMLSegmentationNode"]  # Filtra solo RTSTRUCTs
-        self.rtstruct_selector.selectNodeUponCreation = True
-        self.rtstruct_selector.addEnabled = False
-        self.rtstruct_selector.removeEnabled = False
-        self.rtstruct_selector.noneEnabled = True
-        self.rtstruct_selector.showHidden = False
-        self.rtstruct_selector.showChildNodeTypes = False
-        self.rtstruct_selector.setMRMLScene(slicer.mrmlScene)
-        self.rtstruct_selector.setToolTip("Selecciona el conjunto de estructuras (RTSTRUCT) de la RT Nueva.")
-        structuresFormLayout.addRow("RT2 Structures: ", self.rtstruct_selector)
-
-        # --- BOTÓN PARA OCULTAR TODAS LAS ESTRUCTURAS ---
-        self.hide_all_button = qt.QPushButton("Hide all Structures")
-        self.hide_all_button.setStyleSheet("background-color: #34495e; color: white; padding: 5px;")
-        structuresFormLayout.addRow(self.hide_all_button)
-
-        # Conectar el botón a la función
-        self.hide_all_button.connect('clicked(bool)', self.onHideAllStructures)
-
-        # 2. Inyectar la Tabla Nativa de Segmentos de Slicer
-        self.segments_table = slicer.qMRMLSegmentsTableView()
-        self.segments_table.setMRMLScene(slicer.mrmlScene)
-        structuresFormLayout.addRow(self.segments_table)
-
-        # 3. Conectar el selector con la tabla
-        self.rtstruct_selector.connect("currentNodeChanged(vtkMRMLNode*)", self.onRTStructSelected)
-
-        # ==========================================================
         # PANEL 4: ANÁLISIS DOSIMÉTRICO (EQD2 METRICS)
         # ==========================================================
 
         metricsCollapsibleButton = ctk.ctkCollapsibleButton()
-        metricsCollapsibleButton.text = "4: EQD2 Metrics & DVH"
+        metricsCollapsibleButton.text = "4: EQD2 Metrics and DVH"
         self.layout.addWidget(metricsCollapsibleButton)
         metricsFormLayout = qt.QFormLayout(metricsCollapsibleButton)
 
@@ -267,6 +305,67 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     #====================================================================================================================
     # FUNCIONES CONECTADAS
     #==================================================================================================================
+
+    def onCenterButtonClicked(self):
+        fixed_ct = self.fixed_ct_selector.currentNode()
+        moving_ct = self.moving_ct_selector.currentNode()
+        if not fixed_ct or not moving_ct:
+            slicer.util.warningDisplay("Please select the Fixed CT and Moving CT first.")
+            return
+
+        import numpy as np
+        if not self.manual_transform_node:
+            self.manual_transform_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode", "Manual_PreAlign")
+
+        # Desenganchar para leer coordenadas reales seguras
+        moving_ct.SetAndObserveTransformNodeID(None)
+
+        # Calcular centro Fijo
+        bounds_fixed = np.zeros(6)
+        fixed_ct.GetBounds(bounds_fixed)
+        cf = np.array([(bounds_fixed[0] + bounds_fixed[1]) / 2.0, (bounds_fixed[2] + bounds_fixed[3]) / 2.0,
+                       (bounds_fixed[4] + bounds_fixed[5]) / 2.0])
+
+        # Calcular centro Móvil
+        bounds_moving = np.zeros(6)
+        moving_ct.GetBounds(bounds_moving)
+        cm = np.array([(bounds_moving[0] + bounds_moving[1]) / 2.0, (bounds_moving[2] + bounds_moving[3]) / 2.0,
+                       (bounds_moving[4] + bounds_moving[5]) / 2.0])
+
+        # Guardar la distancia exacta del teletransporte
+        self.base_translation = cf - cm
+
+        # Resetear las barras a 0 visualmente sin activar eventos
+        self.sliderX.blockSignals(True);
+        self.sliderY.blockSignals(True);
+        self.sliderZ.blockSignals(True)
+        self.sliderX.value = 0;
+        self.sliderY.value = 0;
+        self.sliderZ.value = 0
+        self.sliderX.blockSignals(False);
+        self.sliderY.blockSignals(False);
+        self.sliderZ.blockSignals(False)
+
+        # Aplicar el teletransporte y enganchar
+        self.updateManualTransform(0, 0, 0)
+        moving_ct.SetAndObserveTransformNodeID(self.manual_transform_node.GetID())
+
+        # Mezclar vistas y centrar cámaras
+        slicer.util.setSliceViewerLayers(background=fixed_ct, foreground=moving_ct, foregroundOpacity=0.5)
+        slicer.util.resetSliceViews()
+
+    def onSliderValueChanged(self, value):
+        if self.manual_transform_node:
+            self.updateManualTransform(self.sliderX.value, self.sliderY.value, self.sliderZ.value)
+
+    def updateManualTransform(self, dx, dy, dz):
+        import vtk
+        transform = vtk.vtkTransform()
+        # Sumamos el teletransporte inicial + lo que muevas en las barras
+        transform.Translate(self.base_translation[0] + dx,
+                            self.base_translation[1] + dy,
+                            self.base_translation[2] + dz)
+        self.manual_transform_node.SetMatrixTransformToParent(transform.GetMatrix())
 
     def onApplyButton(self):
         # 1. Recolectar los datos que el usuario puso en la interfaz
@@ -323,7 +422,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             # Llamamos a la lógica
             #self.logic.runFastRegistration(fixed_ct, moving_ct, moving_dose, fixed_dose, use_deformable)
             # 1. CAPTURAMOS el resultado del registro
-            aligned_dose_node = self.logic.runFastRegistration(fixed_ct, moving_ct, moving_dose, fixed_dose,use_deformable,use_affine)
+            aligned_dose_node = self.logic.runFastRegistration(fixed_ct, moving_ct, moving_dose, fixed_dose,use_deformable,use_affine,self.manual_transform_node)
 
             # 2. MAGIA UX: Auto-asignamos los volúmenes a los selectores del PASO 2
             self.dose_a_selector.setCurrentNode(aligned_dose_node)
@@ -558,7 +657,7 @@ class SlicerRadCompLogic(ScriptedLoadableModuleLogic):
     def __init__(self):
         ScriptedLoadableModuleLogic.__init__(self)
 
-    def runFastRegistration(self, fixed_ct, moving_ct, moving_dose, fixed_dose,use_deformable=False,use_affine=False):
+    def runFastRegistration(self, fixed_ct, moving_ct, moving_dose, fixed_dose,use_deformable=False,use_affine=False, manual_transform=None):
         # ==========================================================
         # UX: INICIAR VENTANA DE CARGA Y CURSOR DE ESPERA
         # ==========================================================
@@ -581,17 +680,25 @@ class SlicerRadCompLogic(ScriptedLoadableModuleLogic):
             # transformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", transform_name) #funciona para regisro rigido lienal
             transformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode", transform_name)
 
-            # 2. Configurar el motor BRAINSFit (Registro Rígido)
+            # Construimos la cadena de transformaciones según lo que hayas marcado
+            t_types = "Rigid"
+            if use_affine: t_types = "Rigid,Affine"
+            if use_deformable: t_types = "Rigid,Affine,BSpline"
+
             parameters = {
                 "fixedVolume": fixed_ct.GetID(),
                 "movingVolume": moving_ct.GetID(),
-                # "linearTransform": transformNode.GetID(),
-                "useRigid": True,  # Siempre hace un pre-alineamiento rígido
-               # "useAffine": True,  #  Escalar y cizallar (12 DoF)
-                "initializeTransformMode": "useMomentsAlign",  # Alinea los centros de masa de densidad,
+                "transformType": t_types,
                 "maskProcessingMode": "NOMASK",
-               # "samplingPercentage": 0.02
+                # NUEVO: Forzamos un muestreo alto para que detecte los bordes finos del hueso y fuerce la rotación
+                "samplingPercentage": 0.05,
+                "numberOfIterations": 1500  # Le damos más intentos al optimizador para rotar
             }
+            if manual_transform:
+                parameters["initialTransform"] = manual_transform.GetID()
+                parameters["initializeTransformMode"] = "Off"
+            else:
+                parameters["initializeTransformMode"] = "useGeometryAlign"
             if use_affine:
                 parameters["useAffine"] = True
                 parameters["samplingPercentage"] = 0.02  # El salvavidas de RAM
