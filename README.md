@@ -16,7 +16,7 @@ This module performs voxel-by-voxel mathematical operations to biologically sum 
 * **Voxel-by-Voxel processing:** Operates directly on DICOM RTDOSE arrays using NumPy for high-performance biological conversion.
 * **Simultaneous Integrated Boost (SIB) support:** Automatically respects varying dose-per-fraction gradients within the same volume.
 * **Time-Based Recovery Factor:** Applies partial biological recovery discounts to the base plan based on the interval between treatments.
-* **"Eclipse-Style"** Dose Wash: Custom dynamic color map transition (Dark Blue to Red) with a 2 Gy threshold and 40% opacity, replicating the familiar visual experience of commercial Treatment Planning Systems (TPS).
+* **"Eclipse-Style" Dose Wash:** Custom dynamic color map transition (Dark Blue to Red) with a 2 Gy threshold and 40% opacity, replicating the familiar visual experience of commercial Treatment Planning Systems (TPS).
 * **Seamless SlicerRT Integration:** Output volumes are directly compatible with SlicerRT's Dose Volume Histogram (DVH) module.
 * **Dosimetric Analysis:** Metrics table (Dmax, Dmean) synchronized with structure visibility.
 *  **DVH Generation:** Generation of interactive DVH curves within the Slicer.
