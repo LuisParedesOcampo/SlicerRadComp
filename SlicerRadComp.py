@@ -96,18 +96,21 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
         # Sliders (barras deslizadoras)
         self.sliderX = ctk.ctkSliderWidget()
-        self.sliderX.minimum, self.sliderX.maximum, self.sliderX.value = -150, 150, 0
+        self.sliderX.minimum, self.sliderX.maximum, self.sliderX.value = -300, 300, 0
         self.sliderX.suffix = " mm"
+        self.sliderX.enabled = False
         preAlignLayout.addRow("Right/Left (X):", self.sliderX)
 
         self.sliderY = ctk.ctkSliderWidget()
-        self.sliderY.minimum, self.sliderY.maximum, self.sliderY.value = -150, 150, 0
+        self.sliderY.minimum, self.sliderY.maximum, self.sliderY.value = -300, 300, 0
         self.sliderY.suffix = " mm"
+        self.sliderY.enabled = False
         preAlignLayout.addRow("Ant/Post (Y):", self.sliderY)
 
         self.sliderZ = ctk.ctkSliderWidget()
         self.sliderZ.minimum, self.sliderZ.maximum, self.sliderZ.value = -400, 400, 0
         self.sliderZ.suffix = " mm"
+        self.sliderZ.enabled = False
         preAlignLayout.addRow("Sup/Inf (Z):", self.sliderZ)
 
         # Variables de control
@@ -134,7 +137,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         registrationFormLayout.addRow(self.deformable_checkbox)
 
         # Botón Azul de Registro
-        self.registerButton = qt.QPushButton("Auto-Registration and Resample Dose")
+        self.registerButton = qt.QPushButton("Auto-Registration and Dose Resample")
         self.registerButton.toolTip = "It performs an automatic hard registration and adjusts the dose grid.."
         self.registerButton.setStyleSheet("background-color: #2196F3; color: white; font-weight: bold;")
         registrationFormLayout.addRow(self.registerButton)
@@ -309,54 +312,97 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
     def onCenterButtonClicked(self):
         fixed_ct = self.fixed_ct_selector.currentNode()
         moving_ct = self.moving_ct_selector.currentNode()
+
+        # 1. Validación de seguridad básica
         if not fixed_ct or not moving_ct:
             slicer.util.warningDisplay("Please select the Fixed CT and Moving CT first.")
             return
 
+        # 2. Validación: Evitar la ilusión óptica de Slicer
+        if fixed_ct == moving_ct:
+            slicer.util.warningDisplay("Fixed CT and Moving CT cannot be the exact same volume.")
+            return
+
         import numpy as np
-        if not self.manual_transform_node:
-            self.manual_transform_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode", "Manual_PreAlign")
+        import vtk
 
-        # Desenganchar para leer coordenadas reales seguras
-        moving_ct.SetAndObserveTransformNodeID(None)
+        try:
+            # ==========================================================
+            # NUEVO: VALIDACIÓN ANTI "CLOSE SCENE" (Exorcismo de Fantasmas)
+            # ==========================================================
+            if self.manual_transform_node:
+                try:
+                    # Intentamos buscar el nodo en la escena actual
+                    if not slicer.mrmlScene.GetNodeByID(self.manual_transform_node.GetID()):
+                        self.manual_transform_node = None  # Estaba borrado, reseteamos la variable
+                except:
+                    # Si el C++ fue destruido, pedir el GetID falla. Lo atrapamos aquí.
+                    self.manual_transform_node = None
 
-        # Calcular centro Fijo
-        bounds_fixed = np.zeros(6)
-        fixed_ct.GetBounds(bounds_fixed)
-        cf = np.array([(bounds_fixed[0] + bounds_fixed[1]) / 2.0, (bounds_fixed[2] + bounds_fixed[3]) / 2.0,
-                       (bounds_fixed[4] + bounds_fixed[5]) / 2.0])
+            # Si la variable está vacía (o la acabamos de vaciar), creamos un volante nuevo y real
+            if not self.manual_transform_node:
+                self.manual_transform_node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode",
+                                                                                "Manual_PreAlign")
+            # ==========================================================
 
-        # Calcular centro Móvil
-        bounds_moving = np.zeros(6)
-        moving_ct.GetBounds(bounds_moving)
-        cm = np.array([(bounds_moving[0] + bounds_moving[1]) / 2.0, (bounds_moving[2] + bounds_moving[3]) / 2.0,
-                       (bounds_moving[4] + bounds_moving[5]) / 2.0])
+            moving_ct.SetAndObserveTransformNodeID(None)
+            slicer.app.processEvents()
 
-        # Guardar la distancia exacta del teletransporte
-        self.base_translation = cf - cm
+            # Cálculo de centros
+            def get_true_center(volume_node):
+                matrix = vtk.vtkMatrix4x4()
+                volume_node.GetIJKToRASMatrix(matrix)
+                image_data = volume_node.GetImageData()
+                if image_data:
+                    dims = image_data.GetDimensions()
+                    center_ijk = [dims[0] / 2.0, dims[1] / 2.0, dims[2] / 2.0, 1.0]
+                    center_ras = matrix.MultiplyPoint(center_ijk)
+                    return np.array(center_ras[0:3])
+                else:
+                    bounds = np.zeros(6)
+                    volume_node.GetBounds(bounds)
+                    return np.array(
+                        [(bounds[0] + bounds[1]) / 2.0, (bounds[2] + bounds[3]) / 2.0, (bounds[4] + bounds[5]) / 2.0])
 
-        # Resetear las barras a 0 visualmente sin activar eventos
-        self.sliderX.blockSignals(True);
-        self.sliderY.blockSignals(True);
-        self.sliderZ.blockSignals(True)
-        self.sliderX.value = 0;
-        self.sliderY.value = 0;
-        self.sliderZ.value = 0
-        self.sliderX.blockSignals(False);
-        self.sliderY.blockSignals(False);
-        self.sliderZ.blockSignals(False)
+            cf = get_true_center(fixed_ct)
+            cm = get_true_center(moving_ct)
 
-        # Aplicar el teletransporte y enganchar
-        self.updateManualTransform(0, 0, 0)
-        moving_ct.SetAndObserveTransformNodeID(self.manual_transform_node.GetID())
+            self.base_translation = cf - cm
 
-        # Mezclar vistas y centrar cámaras
-        slicer.util.setSliceViewerLayers(background=fixed_ct, foreground=moving_ct, foregroundOpacity=0.5)
-        slicer.util.resetSliceViews()
+            # Resetear barras visualmente (sin disparar el evento)
+            self.sliderX.blockSignals(True);
+            self.sliderY.blockSignals(True);
+            self.sliderZ.blockSignals(True)
+            self.sliderX.value = 0;
+            self.sliderY.value = 0;
+            self.sliderZ.value = 0
+            self.sliderX.blockSignals(False);
+            self.sliderY.blockSignals(False);
+            self.sliderZ.blockSignals(False)
+
+            self.updateManualTransform(0, 0, 0)
+            moving_ct.SetAndObserveTransformNodeID(self.manual_transform_node.GetID())
+
+            slicer.util.setSliceViewerLayers(background=fixed_ct, foreground=moving_ct, foregroundOpacity=0.5)
+            slicer.modules.markups.logic().JumpSlicesToLocation(cf[0], cf[1], cf[2], True)
+
+            # Despertar las barras
+            self.sliderX.enabled = True
+            self.sliderY.enabled = True
+            self.sliderZ.enabled = True
+
+        except Exception as e:
+            slicer.util.errorDisplay(f"Error during Auto-Center: {str(e)}\nPlease check if the CT is fully loaded.")
 
     def onSliderValueChanged(self, value):
+        # Bloque de seguridad para cuando mueves las barras
         if self.manual_transform_node:
-            self.updateManualTransform(self.sliderX.value, self.sliderY.value, self.sliderZ.value)
+            try:
+                # Comprobar que el volante existe en la escena antes de inyectarle movimiento
+                if slicer.mrmlScene.GetNodeByID(self.manual_transform_node.GetID()):
+                    self.updateManualTransform(self.sliderX.value, self.sliderY.value, self.sliderZ.value)
+            except:
+                pass # Ignorar silenciosamente si el nodo es un fantasma
 
     def updateManualTransform(self, dx, dy, dz):
         import vtk
@@ -368,6 +414,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.manual_transform_node.SetMatrixTransformToParent(transform.GetMatrix())
 
     def onApplyButton(self):
+        # 1. Recolectar los datos que el usuario puso en la interfaz
         # 1. Recolectar los datos que el usuario puso en la interfaz
         dose_a_node = self.dose_a_selector.currentNode()
         dose_b_node = self.dose_b_selector.currentNode()
@@ -430,7 +477,7 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
 
             slicer.util.showStatusMessage("registration and Dose resampling completed!")
             slicer.util.infoDisplay(
-                "Successful alignment.\n\nLook for the new Dose volume with the suffix '_Aligned' in your Base Dose (RT1) list to perform the calculation.",
+                "Successful alignment.\n\nLook for the new Dose volume with the suffix '_Registered' in your Base Dose (RT1) list to perform the calculation.",
                 windowTitle="RadComp FastReg")
         except Exception as e:
             slicer.util.errorDisplay(f"Error during image registration:\n{str(e)}", windowTitle="RadComp Error")
@@ -458,35 +505,33 @@ class SlicerRadCompWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             self.segments_table.setSegmentationNode(None)
 
     def onHideAllStructures(self):
-        """Apaga la visibilidad (cierra el ojito) de todas las estructuras simultáneamente"""
-        segmentation_node = self.rtstruct_selector.currentNode()
-
-        if not segmentation_node:
-            slicer.util.warningDisplay("Please select an RTSTRUCT in Panel 3 first.")
-            return
-
-        display_node = segmentation_node.GetDisplayNode()
-        if not display_node:
-            return
-
-        segmentation = segmentation_node.GetSegmentation()
-        num_segments = segmentation.GetNumberOfSegments()
-
-        slicer.util.showStatusMessage("Hiding structures...")
+        slicer.util.showStatusMessage("Toggling individual structures...")
         slicer.app.processEvents()
 
-        # TRUCO PRO: Pausar el renderizado de la escena para que el apagado sea instantáneo
-        slicer.mrmlScene.StartState(slicer.mrmlScene.BatchProcessState)
+        segmentation_nodes = slicer.util.getNodesByClass("vtkMRMLSegmentationNode")
+        for node in segmentation_nodes:
+            display_node = node.GetDisplayNode()
+            if display_node:
+                # 1. OBLIGATORIO: Mantener el contenedor padre encendido para que la tabla funcione
+                display_node.SetVisibility(True)
 
-        # Iterar por todos los órganos y forzar su visibilidad a False (Apagado)
-        for i in range(num_segments):
-            segment_id = segmentation.GetNthSegmentID(i)
-            display_node.SetSegmentVisibility(segment_id, False)
+                # 2. Determinar si hay al menos un "ojito" encendido internamente
+                any_visible = False
+                segmentation = node.GetSegmentation()
+                for i in range(segmentation.GetNumberOfSegments()):
+                    segment_id = segmentation.GetNthSegmentID(i)
+                    if display_node.GetSegmentVisibility(segment_id):
+                        any_visible = True
+                        break
 
-        # Reanudar el renderizado (los ojitos se cerrarán todos al mismo tiempo)
-        slicer.mrmlScene.EndState(slicer.mrmlScene.BatchProcessState)
+                # 3. Sincronizar la interfaz: Apagar o encender TODOS los ojitos individuales
+                if any_visible:
+                    display_node.SetAllSegmentsVisibility(False)
+                else:
+                    display_node.SetAllSegmentsVisibility(True)
 
-        slicer.util.showStatusMessage("¡All the structures have been hidden!")
+        slicer.util.showStatusMessage("")
+
 
     def onCalculateMetrics(self):
         """Calcula métricas forzando la actualización de los datos de dosis visibles"""
@@ -672,80 +717,93 @@ class SlicerRadCompLogic(ScriptedLoadableModuleLogic):
         )
         progress.show()
         slicer.app.processEvents()  # Vital: Fuerza a Slicer a dibujar la ventana antes de congelarse
-
         try:
-
-            # 1. Crear un nodo contenedor para la matriz de transformación
+            # 1. Crear el "recipiente" donde se guardará el resultado matemático de la fusión
             transform_name = f"Transform_{moving_ct.GetName()}_to_{fixed_ct.GetName()}"
-            # transformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLLinearTransformNode", transform_name) #funciona para regisro rigido lienal
-            transformNode = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode", transform_name)
+            final_transform = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLTransformNode", transform_name)
 
-            # Construimos la cadena de transformaciones según lo que hayas marcado
-            t_types = "Rigid"
-            if use_affine: t_types = "Rigid,Affine"
-            if use_deformable: t_types = "Rigid,Affine,BSpline"
+            # 2. Configurar el tipo de transformación dinámicamente según la interfaz
+            fases_registro = ["Rigid"]  # Rígido siempre es obligatorio como base
 
+            if use_affine:
+                fases_registro.append("Affine")
+
+            if use_deformable:
+                fases_registro.append("BSpline")
+
+            # Unir las palabras con comas (Ej: "Rigid,BSpline" si Affine está apagado)
+            t_types = ",".join(fases_registro)
+
+            tasa_muestreo = 0.01 if use_deformable else 0.02
+
+            # 3. Diccionario de Parámetros de BRAINSFit con "Balance Clínico"
             parameters = {
                 "fixedVolume": fixed_ct.GetID(),
                 "movingVolume": moving_ct.GetID(),
                 "transformType": t_types,
                 "maskProcessingMode": "NOMASK",
-                # NUEVO: Forzamos un muestreo alto para que detecte los bordes finos del hueso y fuerce la rotación
-                "samplingPercentage": 0.05,
-                "numberOfIterations": 1500  # Le damos más intentos al optimizador para rotar
+                "samplingPercentage": tasa_muestreo,  # 2% de los píxeles (Estándar comercial para velocidad/precisión)
+                "numberOfIterations": 500,  # Límite de intentos para evitar ciclos infinitos
+                "minimumStepLength": 0.005,  # Detenerse temprano si el "match" óseo ya es perfecto
             }
+
+            # 4. El Puente: ¿El usuario ajustó las barras manuales?
             if manual_transform:
                 parameters["initialTransform"] = manual_transform.GetID()
-                parameters["initializeTransformMode"] = "Off"
+                parameters["initializeTransformMode"] = "Off"  # Respetar el ajuste manual del usuario
             else:
-                parameters["initializeTransformMode"] = "useGeometryAlign"
-            if use_affine:
-                parameters["useAffine"] = True
-                parameters["samplingPercentage"] = 0.02  # El salvavidas de RAM
+                parameters[
+                    "initializeTransformMode"] = "useGeometryAlign"  # Si no usó las barras, intentar centrar automático
 
+            # 5. Decirle al motor de registro DÓNDE GUARDAR el resultado
             if use_deformable:
-                parameters["bsplineTransform"] = transformNode.GetID()  # Canal elástico
-                parameters["useBSpline"] = True
-                parameters["splineGridSize"] = [7, 7, 7]  # Malla elástica de alta resolución
+                parameters["bsplineTransform"] = final_transform.GetID()
+                parameters["splineGridSize"] = [5, 5, 5]
             else:
-                parameters["linearTransform"] = transformNode.GetID()  # Canal rígido
+                parameters["linearTransform"] = final_transform.GetID()
 
-            # Ejecutar en modo síncrono (congela la pantalla unos segundos hasta que termina)
+            # ==========================================================
+            # 6. EJECUTAR EL MOTOR DE REGISTRO DE IMÁGENES (BRAINSFit)
+            # ==========================================================
             brainsFit = slicer.modules.brainsfit
             cliNode = slicer.cli.runSync(brainsFit, None, parameters)
 
             if cliNode.GetStatus() & cliNode.ErrorsMask:
                 raise ValueError("The image registration engine (BRAINSFit) failed.")
 
-            #  Remuestrear la Dosis (BRAINSResample)
-            output_dose_name = f"{moving_dose.GetName()}_Aligned"
+            # ==========================================================
+            # 7. MOVER LA DOSIS ANTIGUA (BRAINSResample)
+            # ==========================================================
+            # Preparar un volumen clonado vacío para recibir la nueva dosis deformada
+            output_dose_name = f"{moving_dose.GetName()}_Registered"
             volumesLogic = slicer.modules.volumes.logic()
-
-            # Clonamos el 'envase' de la Dosis Nueva (fixed_dose) para tener su tamaño exacto
             outputDose = volumesLogic.CloneVolume(slicer.mrmlScene, fixed_dose, output_dose_name)
             outputDose.SetAttribute("DICOM.Modality", "RTDOSE")
 
+            # Configurar el motor de re-muestreo pasándole el final_transform obtenido arriba
             resample_params = {
                 "inputVolume": moving_dose.GetID(),
                 "referenceVolume": fixed_dose.GetID(),
                 "outputVolume": outputDose.GetID(),
-                "warpTransform": transformNode.GetID(),
-                "interpolationMode": "Linear",  # Interpolación lineal para dosis continuas
+                "warpTransform": final_transform.GetID(),  # Aplicar el mismo movimiento de los huesos a la dosis
+                "interpolationMode": "Linear",
                 "pixelType": "float"
             }
 
-            brainsResample = slicer.modules.brainsresample
-            cliNodeResample = slicer.cli.runSync(brainsResample, None, resample_params)
+            cliNodeResample = slicer.cli.runSync(slicer.modules.brainsresample, None, resample_params)
 
             if cliNodeResample.GetStatus() & cliNodeResample.ErrorsMask:
                 raise ValueError("The Dose resample (BRAINSResample) failed.")
 
-            # 1. Le aplicamos la matriz espacial calculada al CT Viejo
-            moving_ct.SetAndObserveTransformNodeID(transformNode.GetID())
-            # 2. Le decimos a Slicer que ponga el CT Nuevo de fondo, el Viejo encima, al 50% de transparencia
+            # ==========================================================
+            # 8. ACTUALIZAR LA PANTALLA
+            # ==========================================================
+            # Enganchar el TAC Antiguo a la transformación final para que el usuario vea el resultado
+            moving_ct.SetAndObserveTransformNodeID(final_transform.GetID())
             slicer.util.setSliceViewerLayers(background=fixed_ct, foreground=moving_ct, foregroundOpacity=0.5)
 
             return outputDose
+
         finally:
             # ==========================================================
             # UX: RESTAURAR INTERFAZ (Incluso si hay un error)
