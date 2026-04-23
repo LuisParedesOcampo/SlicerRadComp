@@ -20,3 +20,4 @@ slicerMacroBuildScriptedModule(
   RESOURCES
     Resources/Icons/SlicerRadComp.png
 )
+include(${Slicer_EXTENSION_CPACK}) 
