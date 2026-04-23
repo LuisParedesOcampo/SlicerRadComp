@@ -4,7 +4,7 @@ project(RadComp)
 # Meta-informacion de la extension
 set(EXTENSION_HOMEPAGE "https://radcomp.streamlit.app")
 set(EXTENSION_CATEGORY "Radiotherapy")
-set(EXTENSION_CONTRIBUTORS "Luis Paredes")
+set(EXTENSION_CONTRIBUTORS "Luis Paredes, Medical Physicist")
 set(EXTENSION_DESCRIPTION "A clinical tool for Reirradiation analysis, EQD2 dose calculation, and integrated DVH metrics.")
 set(EXTENSION_ICONURL "https://raw.githubusercontent.com/LuisParedesOcampo/SlicerRadComp/refs/heads/main/Resources/Icons/SlicerRadComp.png")
 set(EXTENSION_SCREENSHOTURLS "https://raw.githubusercontent.com/LuisParedesOcampo/SlicerRadComp/refs/heads/main/Resources/Icons/ScreenshotRadComp.png")
