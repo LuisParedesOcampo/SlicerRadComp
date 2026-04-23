@@ -16,7 +16,7 @@ include(${Slicer_USE_FILE})
 slicerMacroBuildScriptedModule(
   NAME RadComp
   SCRIPTS
-    SlicerRadComp.py
+    RadComp.py
   RESOURCES
     Resources/Icons/SlicerRadComp.png
 )
