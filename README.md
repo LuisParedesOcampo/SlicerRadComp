@@ -46,12 +46,26 @@ recommendations*. [https://doi.org/10.1007/s00066-018-1266-6]
 6. **Recommended Dependency:** It is highly recommended to have **SlicerRT** installed for the seamless importation and handling of DICOM-RT objects.
 
 ## Step-by-step tutorial 🛠️
-To perform an accurate re-irradiation analysis, you must export two complete datasets from your Treatment Planning System (TPS): the Previous Treatment and the Current/Planned Treatment.
+To perform an accurate re-irradiation analysis, you must export two complete datasets from your Treatment Planning System (TPS): the Previous (1) Treatment and the Current/Planned Treatment (2).
+
+<img width="679" height="266" alt="0" src="https://github.com/user-attachments/assets/4493ec9f-dac8-485c-b845-ac161f34d67d" />
+
 Export Requirements (from your TPS):
 * CT Images (CT)
 * RT Doses (RD)
 * RT Structure Sets (RS)
 * Optional but recommended: RT Plans (RP)
+
+<img width="1182" height="581" alt="1" src="https://github.com/user-attachments/assets/4051c8e3-1dba-4cd6-8d44-8b48f292e470" />
+
+Succesfull exportation of the previous treatmet, repeat the same steps for the current/planned treatmet
+
+<img width="1187" height="577" alt="2" src="https://github.com/user-attachments/assets/5abe9de0-c1a2-48b4-91ba-bd2f509485d8" />
+
+
+
+
+
 
 
 ## Disclaimer ⚠️
