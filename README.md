@@ -68,18 +68,17 @@ Ensure you have the SlicerRT extension installed. It is a mandatory requirement 
 
 <img width="1202" height="772" alt="3" src="https://github.com/user-attachments/assets/c8e57085-13bf-4b7d-af89-d7e2dae9fa4e" />
 <img width="1916" height="995" alt="4" src="https://github.com/user-attachments/assets/79303f7a-ca0d-4811-878f-30696658eed1" />
-Once the DICOM files are loaded only check the TAC, RD and RS of the previous and current treatmets. RP is optional; it is not used in this version but will be used in future developments.  
-<img width="1380" height="245" alt="5" src="https://github.com/user-attachments/assets/38ab86dd-faa9-4899-9f4b-1a3d6b8b107d" />
-
-
-
-
-
-
-Crucial Step: When the DICOM import window appears, ensure the "eye" icon next to your RT Structures is toggled ON (visible). If this icon is closed, the structures will not be loaded into the scene and cannot be evaluated.
+Once the DICOM files are loaded only check the TAC, RD and RS of the previous and current treatmets, click on Load button. RP is optional; it is not used in this version but will be used in future developments.  
+<img width="1380" height="245" alt="5" src="https://github.com/user-attachments/assets/0d384dfb-b3c6-46e5-8363-484765c64c5d" />
+Crucial Steps: When the DICOM import window appears, ensure the "eye" icon next to your RT Structures is toggled ON (visible). If this icon is closed, the structures will not be loaded into the scene and the DVH cannot be evaluated.
 
 Data Organization Tip:
-Since TPS exports often generate generic names, it is highly recommended to open the Data module in Slicer and rename your loaded volumes immediately (e.g., rename them to CT_Previous, CT_Current, Dose_Previous, Dose_Current). This will prevent confusion when assigning volumes in the RadReirradiation module.
+Since TPS exports often generate generic names (In this example, the RTDOSE files in both treatmets have the same name), it is highly recommended to rename your loaded volumes immediately (e.g., rename them to CT_Previous, CT_Current, Dose_Previous, Dose_Current). This will prevent confusion when assigning volumes in the RadReirradiation module.
+<img width="1881" height="984" alt="6" src="https://github.com/user-attachments/assets/fe9bea1a-5ed5-43a5-8bde-c243d972ddac" />
+<img width="1130" height="285" alt="7" src="https://github.com/user-attachments/assets/58de03d2-7cf9-46bb-9243-8ed392857d68" />
+
+
+
 
 
 
