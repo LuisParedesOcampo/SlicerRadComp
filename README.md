@@ -62,11 +62,12 @@ Succesfull exportation of the previous treatmet, repeat the same steps for the c
 
 <img width="1187" height="577" alt="2" src="https://github.com/user-attachments/assets/5abe9de0-c1a2-48b4-91ba-bd2f509485d8" />
 
-
 **Importing into 3D Slicer:**
+
 Ensure you have the SlicerRT extension installed. It is a mandatory requirement to read and process Radiotherapy DICOM files. Drag and drop your exported DICOM folders into the 3D Slicer application or use the native DICOM Browser.
 Crucial Step: When the DICOM import window appears, ensure the "eye" icon next to your RT Structures is toggled ON (visible). If this icon is closed, the structures will not be loaded into the scene and cannot be evaluated.
 
+<img width="1202" height="772" alt="3" src="https://github.com/user-attachments/assets/c8e57085-13bf-4b7d-af89-d7e2dae9fa4e" />
 
 
 Data Organization Tip:
