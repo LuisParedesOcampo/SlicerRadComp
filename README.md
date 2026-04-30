@@ -93,16 +93,52 @@ Launching the Module:
 <img width="1170" height="981" alt="8" src="https://github.com/user-attachments/assets/d06ce3f6-5496-48ed-8806-f3d7d5e557d9" />
 
 
+**RadReirradiation**  has 4 important modules, which are:
+
+1. Data selection and image registration with Dose resample.
+2. Structures visualization (important for the DVH analysis).
+3. Reirradiation calculation settings.
+4. Metrics an DVH results.
+     
+<img width="1221" height="907" alt="10" src="https://github.com/user-attachments/assets/66350799-ce81-48d3-8620-94167a546602" />
+
+
 **Assigning Volumes:**
 
 In the Data Selection panel, carefully assign your loaded volumes to their corresponding roles:
 * Moving CT / Previous CT: The historical anatomy that needs to be registered.
-* Reference CT / Current CT: The anatomy where the final dose summation will be evaluated.
+* RTDOSE Previous treatment.
+* Fixed CT / Current /planned CT: The anatomy where the final dose summation will be evaluated.
+* RTDOSE Current/planned Treatment.
 
-<img width="558" height="404" alt="9" src="https://github.com/user-attachments/assets/0046bbba-1e01-46c1-a258-09f755fe0442" />
+<img width="523" height="249" alt="9" src="https://github.com/user-attachments/assets/3bc186c4-953e-4961-8806-9d16133841b0" />
+
+**Pre-Alignment and Image Registration with Dose resample:**
+
+Before computing any biological dose, both CTs must be spatially aligned. Click the "Auto-Center CTs" button. This will automatically match the mathematical centers of both image sets, providing an excellent starting point.
+At this point, it is recommended to hide the structures to better visualize the Pre-Aligment and image Registration results. To do this, use module 2 (Structures visualization), select the RS CURRENT file, and press the "Hide all structures" button.
+
+<img width="1920" height="1007" alt="11" src="https://github.com/user-attachments/assets/a1a32f96-e860-47de-9c8b-e2b062f028e5" />
+
+Use the manual sliders to fine-tune the alignment if the patient setups were significantly different, this will be the starting point for the image registration and Dose resample algorithm.
+
+<img width="1770" height="890" alt="12" src="https://github.com/user-attachments/assets/d36b17ae-6067-4cf9-8669-29d6164cf2a7" />
+
+ **Registration Options & Processing Time:**
+
+ Press the button Auto-Registration and Dose resample, this uses the built-in BRAINSFit integration to lock the previous CT and its dose onto the current anatomy. the module includes two checkeable options for improve image registration results:
+ 
+* Affine Registration: Performs a linear transformation (translation, rotation, scaling, and shearing).
+* Deformable Registration: Performs a non-linear transformation (BSpline) that adapts to anatomical changes between the two scans, such as weight loss or tumor shrinkage.
+* ⚠️ Warning: Please note that checking those options, especially the Deformable option, is computationally intensive. It may take several minutes to complete depending on your computer's hardware specifications.
+
+**Visualizing the Fusion Results:**
+
+After the registration is complete, it is highly recommended to perform a visual Quality Assurance (QA). Use Slicer's native foreground/background fade sliders (located at the top of the 2D slice views) to blend the Previous CT and Current CT. This visual check ensures the accuracy of the alignment before proceeding to the dose calculation.
+
+<img width="1846" height="889" alt="13" src="https://github.com/user-attachments/assets/15ca65fe-f9af-4316-ae5f-793881cdfea1" />
 
 
-Do the same for the RT Dose volumes.
 
 
 
