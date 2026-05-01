@@ -81,7 +81,7 @@ Since TPS exports often generate generic names (In this example, the RTDOSE file
 <img width="1130" height="285" alt="7" src="https://github.com/user-attachments/assets/58de03d2-7cf9-46bb-9243-8ed392857d68" />
 
 
-**2. Loading Data and Smart Alignment**
+**2. Launching RadReirradiation**
 
 Once your DICOM data is properly imported and organized in 3D Slicer, it is time to load it into the extension to coregister the previous treatment with the current patient anatomy.
 
@@ -138,13 +138,13 @@ After the registration is complete, it is highly recommended to perform a visual
 
 <img width="1846" height="889" alt="13" src="https://github.com/user-attachments/assets/15ca65fe-f9af-4316-ae5f-793881cdfea1" />
 
-**3. Reirradiation Caulculation settings and DVH Evaluation**
+**3. Reirradiation Caulculation settings**
 
 With the CT images already registered, the extension streamlines your workflow. Thanks to the image registration algorithm, the newly registered and mapped to the current anatomy: Previous RT Dose (RD PREVIOUS_Registered) is automatically loaded in the module, saving you manual steps and reducing setup errors.
 
 <img width="522" height="260" alt="14" src="https://github.com/user-attachments/assets/14cf11d0-463d-4570-bf56-0927a8b9b411" />
 
-**Reirradiation Settngs:**
+**Reirradiation Settings:**
 
 * Adjust the Alpha/Beta (α/β) ratios according to the specific tissue or tumor being evaluated.
      * ⚠️ Important Clinical Note: Currently, the module performs the biological summation using a single global alpha/beta ratio per calculation. If you want to evaluate late effects on Organs at Risk (OARs), set the ratio to e.g. 3 and calculate. To evaluate tumor control, you will need to change the ratio to e.g. 10 and run a new calculation, is not necessary to perform the image registration and all the previous steps, just change the alpha/beta and click the Calculate button. (Note: A future update is currently in development to allow structure-specific alpha/beta assignments).
