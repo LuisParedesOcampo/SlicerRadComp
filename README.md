@@ -63,7 +63,8 @@ Export Requirements (from your TPS):
 
 Succesfull exportation of the previous treatmet, repeat the same steps for the current/planned treatmet
 
-<img width="1187" height="577" alt="2" src="https://github.com/user-attachments/assets/5abe9de0-c1a2-48b4-91ba-bd2f509485d8" />
+<img width="1187" height="577" alt="2" src="https://github.com/user-attachments/assets/35867a76-7435-4e8c-b387-591fc5b4e4d0" />
+
 
 **Importing into 3D Slicer:**
 
